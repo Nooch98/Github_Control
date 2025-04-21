@@ -1,0 +1,9 @@
+{
+    "name": "Example",
+    "version": "1.0.0",
+    "description": "Example plugin.",
+    "author": "Nooch98",
+    "entry": "Example.exe",
+    "source": "Example.py",
+    "hash": "B0A12F11AAB09165888131356F61DBB0E9A69647997DB59B7F220B687AF5DD99"
+}
