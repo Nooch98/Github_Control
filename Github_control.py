@@ -2378,7 +2378,7 @@ def mostrar_terminal():
     
     def listar_plugins_disponibles():
         try:
-            url = "https://api.github.com/repos/Nooch98/Organizer/contents/github_control_plugins"
+            url = "https://api.github.com/repos/Nooch98/Gtihub_control/contents/github_control_plugins"
             r = requests.get(url, timeout=10)
             r.raise_for_status()
             data = r.json()
@@ -2395,7 +2395,7 @@ def mostrar_terminal():
            
     def mostrar_versions(version_especifica=None):
         try:
-            url = "https://api.github.com/repos/Nooch98/Organizer/releases"
+            url = "https://api.github.com/repos/Nooch98/Gtihub_control/releases"
             r = requests.get(url, timeout=10)
             r.raise_for_status()
             data = r.json()
@@ -2425,7 +2425,7 @@ def mostrar_terminal():
             
     def descargar_version(version):
         try:
-            repo = "Nooch98/Organizer"
+            repo = "Nooch98/Github_control"
             api_url = f"https://api.github.com/repos/{repo}/releases/tags/{version}"
             response = requests.get(api_url)
             response.raise_for_status()
