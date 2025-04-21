@@ -1,6 +1,6 @@
 # 🚀 GitHub Control
 
-**GitHub Control** is a powerful open-source desktop app for managing multiple GitHub accounts with advanced features that even surpass official tools like GitHub Desktop.
+**GitHub Control** is a powerful open-source desktop app for managing multiple GitHub accounts with advanced features.
 
 It’s designed with flexibility, extensibility, and productivity in mind — featuring a plugin system, real-time GitHub status, integrated terminal, and more.
 
