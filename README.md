@@ -16,13 +16,24 @@ It’s designed with flexibility, extensibility, and productivity in mind — fe
 
 ![Captura de pantalla 2025-04-22 012457](https://github.com/user-attachments/assets/e2adc275-8623-48d5-aa9f-6b6e43c2db46)
 
+- 🔎 **Github Search integration** Integration with GitHub Search (due to API limitations, this may cause errors)
+
+![Captura de pantalla 2025-04-22 052609](https://github.com/user-attachments/assets/bc65957a-936d-4acd-acac-60e320bff4ed)
+
 - 🔄 **Commit and branch management**, including cloning and backups
+
+![Captura de pantalla 2025-04-22 053138](https://github.com/user-attachments/assets/423b4304-1316-4042-aa30-18fc8e0c717d)
+
 - 🧪 **Experimental code analysis** (currently Python-only)
+
 - 🌐 **Global repo search** Search any repo on github
 
 ![Captura de pantalla 2025-04-22 012724](https://github.com/user-attachments/assets/4c18f7e4-2b6d-4a9d-b8a2-6f92b4a5d938)
 
 - ⚙️ **Edit repo files** directly from the UI
+
+![Captura de pantalla 2025-04-22 053313](https://github.com/user-attachments/assets/ca431d57-d87a-4b72-9ea7-c8f2a71b6473)
+
 - 📊 **Detailed user and repo statistics**
 
 ![Captura de pantalla 2025-04-22 012910](https://github.com/user-attachments/assets/62167931-e898-476f-bf04-95a3d3be0042)
@@ -37,7 +48,7 @@ It’s designed with flexibility, extensibility, and productivity in mind — fe
 
 - 📦 **Plugin system** with automatic install/update
 - ⬇️ **App downgrade and update support** via command
-- 💾 **Repo backup and restore system**
+- 💾 **Repo backup and restore system** Create backups of your repositories locally so you can modify them even without access to GitHub.
 - 🚦 **Real-time GitHub status monitor** (refresh every 60s)
 
 ![Captura de pantalla 2025-04-22 013142](https://github.com/user-attachments/assets/3af679b8-09f6-4983-a8fd-ec7423f5dec3)
@@ -89,7 +100,7 @@ update # Updates the app
 versions # Displays all versions
 versions <version> # Displays details about a version
 plugins update # Updates installed plugins
-clear # Clears the terminal
+clear # Clears the terminal or CTRL + L
 ```
 
 ---
@@ -139,8 +150,6 @@ github_control_plugins/
 ## 🔮 Roadmap
 
 - 📎 GitHub Actions viewer
-- 
-
 
 ---
 
