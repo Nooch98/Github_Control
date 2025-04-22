@@ -146,7 +146,7 @@ github_control_plugins/
 
 ## 🧠 License
 
-**Creative Commons Attribution-NonCommercial 4.0 International** © Nooch98
+**MIT** © Nooch98
 
 ---
 
