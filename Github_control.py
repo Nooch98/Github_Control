@@ -29,8 +29,8 @@ from tkinter.scrolledtext import ScrolledText
 from ping3 import ping
 from datetime import datetime
 
-main_version = "Version: 0.0.1"
-title_version = "_V.0.0.1"
+main_version = "Version: 0.0.2"
+title_version = "_V.0.0.2"
 str_title_version = str(title_version)
 version = str(main_version)
 issue_list = None
@@ -1413,8 +1413,8 @@ def backup_repository(repo_name):
 
         progress_window = tk.Toplevel(root)
         progress_window.iconbitmap(path_icon)
-        progress_window.title("Creando Backup...")
-        ttk.Label(progress_window, text=f"Creando backup de {repo_name}...").pack(pady=5)
+        progress_window.title("Creating Backup...")
+        ttk.Label(progress_window, text=f"Creating backup {repo_name}...").pack(pady=5)
         progress = Progressbar(progress_window, mode="determinate", length=300)
         progress.pack(padx=10, pady=10)
 
@@ -1434,10 +1434,10 @@ def backup_repository(repo_name):
 
         progress["value"] = 100
         progress_window.destroy()
-        ms.showinfo("Éxito", f"Backup de '{repo_name}' guardado en {save_path}")
+        ms.showinfo("Success", f"Backup of '{repo_name}' saved to {save_path}")
 
     except requests.exceptions.RequestException as e:
-        ms.showerror("Error", f"No se pudo crear el backup: {e}")
+        ms.showerror("Error", f"The backup could not be created: {e}")
 
 def download_file(repo_name, file_path):
     try:
@@ -1455,8 +1455,8 @@ def download_file(repo_name, file_path):
 
         progress_window = tk.Toplevel(root)
         progress_window.iconbitmap(path_icon)
-        progress_window.title("Descargando...")
-        ttk.Label(progress_window, text=f"Descargando {file_path}...").pack(pady=5)
+        progress_window.title("Downloading...")
+        ttk.Label(progress_window, text=f"Downloading {file_path}...").pack(pady=5)
         progress = Progressbar(progress_window, mode="determinate", length=300)
         progress.pack(padx=10, pady=10)
 
@@ -1470,10 +1470,10 @@ def download_file(repo_name, file_path):
 
         progress["value"] = 100
         progress_window.destroy()
-        ms.showinfo("Éxito", f"Archivo '{file_path}' descargado correctamente.")
+        ms.showinfo("Success", f"File '{file_path}' downloaded successfully.")
 
     except requests.exceptions.RequestException as e:
-        ms.showerror("Error", f"No se pudo descargar el archivo: {e}")
+        ms.showerror("Error", f"The file could not be downloaded: {e}")
 
 def resource_path(relative_path):
     try:
@@ -1487,7 +1487,7 @@ def search_repositories():
     def search_repositories_global():
         query = search_var.get().strip()
         if not query:
-            ms.showerror("Error", "Escribe algo para buscar.")
+            ms.showerror("Error", "Write something to search.")
             return
 
         load_bar = Progressbar(root, orient=tk.HORIZONTAL, mode='indeterminate')
@@ -1540,7 +1540,7 @@ def search_repositories():
                     break
 
         except requests.exceptions.RequestException as e:
-            ms.showerror("Error", f"No se pudo buscar en GitHub: {e}")
+            ms.showerror("Error", f"Could not search GitHub: {e}")
 
         finally:
             load_bar.stop()
@@ -1555,11 +1555,11 @@ def search_repositories():
         try:
             response = requests.put(url, headers={"Authorization": f"token {GITHUB_TOKEN}"})
             if response.status_code == 204:
-                ms.showinfo("Éxito", f"Has dado estrella a '{repo_name}'.")
+                ms.showinfo("Éxito", f"You have given a star to '{repo_name}'.")
             else:
-                ms.showerror("Error", f"No se pudo dar estrella: {response.status_code}")
+                ms.showerror("Error", f"No star could be given: {response.status_code}")
         except requests.exceptions.RequestException as e:
-            ms.showerror("Error", f"Error al dar estrella: {e}")
+            ms.showerror("Error", f"Error giving star: {e}")
     
     def search_menu_context(event):
         item = search_tree.identify_row(event.y)
@@ -1675,8 +1675,8 @@ def search_repositories():
     search_entry_repos.bind("<KeyRelease>", search_repos_in_treeview)
     
     search_context_menu = tk.Menu(root, tearoff=0)
-    search_context_menu.add_command(label="⭐ Agregar a Favoritos", command=lambda: star_repository(search_tree.item(search_tree.selection()[0], "values")[0], search_tree.item(search_tree.selection()[0], "values")[1]))
-    search_context_menu.add_command(label="🛠️ Clonar Repositorio", command=lambda: clone_repository_from_search())
+    search_context_menu.add_command(label="⭐ Add to Favorites", command=lambda: star_repository(search_tree.item(search_tree.selection()[0], "values")[0], search_tree.item(search_tree.selection()[0], "values")[1]))
+    search_context_menu.add_command(label="🛠️ Clone Repository", command=lambda: clone_repository_from_search())
 
 def go_back(repo_name, repo_owner):
     if repo_history:
@@ -1694,13 +1694,13 @@ def view_repo_details(repo_name, repo_owner, path=""):
     for widget in repo_view_frame.winfo_children():
         widget.destroy()
 
-    back_button = ttk.Button(repo_view_frame, text="⬅️ Atrás", command=lambda: go_back(repo_name, repo_owner))
+    back_button = ttk.Button(repo_view_frame, text="⬅️ Back", command=lambda: go_back(repo_name, repo_owner))
     back_button.pack(pady=5, padx=10, anchor="w")
 
     if not repo_history:
         back_button["state"] = "disabled"
 
-    ttk.Label(repo_view_frame, text=f"📂 Explorando {repo_owner}/{repo_name}/{path}", font=("Arial", 14, "bold")).pack(pady=5)
+    ttk.Label(repo_view_frame, text=f"📂 Exploring {repo_owner}/{repo_name}/{path}", font=("Arial", 14, "bold")).pack(pady=5)
 
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
 
@@ -1785,10 +1785,9 @@ def view_file_content(repo_name, repo_owner, file_path):
         text_editor.insert("1.0", file_content)
 
     except requests.exceptions.RequestException as e:
-        ms.showerror("Error", f"No se pudo obtener el archivo: {e}")
+        ms.showerror("Error", f"The file could not be obtained: {e}")
         
 def search_code_on_github():
-    """Búsqueda de código en GitHub con paginación, scroll y visualización de código."""
     global results, current_page, max_results_per_page, prev_button, next_button
 
     results = []
@@ -2481,7 +2480,7 @@ def mostrar_terminal():
             if remote_version.startswith("."):
                 remote_version = remote_version[1:]
 
-            if local_version != remote_version:
+            if local_version != remote_version and remote_version > local_version:
                 imprimir_salida(f"⚠️ A new version of the application is available: {remote_version}", "stdout")
                 imprimir_salida("ℹ️ You can use the 'update' command to update the application.", "stdout")
             else:
