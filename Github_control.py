@@ -115,10 +115,10 @@ def obtain_github_repos():
             
             return repos
         except requests.exceptions.RequestException as e:
-            ms.showerror("❌ Error", f"No se pudieron obtener los repositorios: {str(e)}")
+            ms.showerror("❌ Error", f"The repositories could not be obtained: {str(e)}")
             return cache.get("repos", [])
     else:
-        ms.showwarning("⚠️ Modo Offline", "No hay conexión. Usando datos en caché.")
+        ms.showwarning("⚠️ Offline Mode", "No connection. Using cached data..")
         return cache.get("repos", [])
     
 def obtain_github_commits(repo_name, cache):
@@ -188,7 +188,7 @@ def obtain_github_user():
         response.raise_for_status()
         return response.json()["login"]
     except requests.exceptions.RequestException as e:
-        ms.showerror("❌ Error", f"No se pudo obtener el usuario de GitHub: {str(e)}")
+        ms.showerror("❌ Error", f"Failed to get GitHub user: {str(e)}")
         return None
 
 def obtain_starred_repos():
@@ -200,7 +200,7 @@ def obtain_starred_repos():
         repos = response.json()
         return repos
     except requests.exceptions.RequestException as e:
-        ms.showerror("ERROR", f"No se pueden obtener los repositorios con estrella: {e}")
+        ms.showerror("ERROR", f"Cannot get starred repositories: {e}")
         return []
 
 def check_api_limits():
@@ -222,12 +222,12 @@ def unstar_repository(repo_name, repo_owner):
     try:
         response = requests.delete(url, headers={"Authorization": f"token {GITHUB_TOKEN}"})
         if response.status_code == 204:
-            ms.showinfo("Éxito", f"Has quitado la estrella del repositorio '{repo_name}'.")
+            ms.showinfo("Success", f"You have unstarred the repository '{repo_name}'.")
             show_github_repos()
         else:
-            ms.showerror("Error", f"No se pudo quitar la estrella: {response.status_code}")
+            ms.showerror("Error", f"The star could not be removed: {response.status_code}")
     except requests.exceptions.RequestException as e:
-        ms.showerror("Error", f"Error al quitar la estrella: {e}")
+        ms.showerror("Error", f"Error removing star: {e}")
 
 def show_github_repos():
     repos = obtain_github_repos()
@@ -2269,11 +2269,23 @@ TERMINAL_STYLE = {
     "stderr": "#ff5f5f",
     "input_valid": "#00ff5f",
     "input_invalid": "#ff5f5f",
+    "link": "#33ccff",
     "font": ("CaskaydiaMono Nerd Font", 11),
+}
+
+COMMANDS_AVAILABLES = {
+    "help": [],
+    "clear": [],
+    "install": ["<plugin>"],
+    "uninstall": ["<plugin>"],
+    "update": ["", "check", "<version>"],
+    "versions": ["", "<version>"],
+    "plugins": ["list", "installed"],
 }
 
 def mostrar_terminal():
     import shutil
+    import re
     terminal = ttk.Window(title="Integrated Terminal")
     terminal.geometry("900x500")
     terminal.iconbitmap(path_icon)
@@ -2284,6 +2296,9 @@ def mostrar_terminal():
     term_output.pack(expand=True, fill="both", padx=5, pady=5)
     term_output.tag_config("stdout", foreground=TERMINAL_STYLE["stdout"])
     term_output.tag_config("stderr", foreground=TERMINAL_STYLE["stderr"])
+    term_output.tag_config("link", foreground=TERMINAL_STYLE["link"], underline=True)
+    term_output.tag_bind("link", "<Enter>", lambda e: term_output.config(cursor="hand2"))
+    term_output.tag_bind("link", "<Leave>", lambda e: term_output.config(cursor="xterm"))
     term_output.config(state="disabled")
 
     entrada = tk.Entry(terminal, bg="#1c1c1c", fg=TERMINAL_STYLE["fg"],
@@ -2293,13 +2308,75 @@ def mostrar_terminal():
     historial = []
     historial_index = 0
 
+    def validate_command(event=None):
+        comando = entrada.get().strip()
+
+        if not comando:
+            entrada.config(fg=TERMINAL_STYLE["fg"])
+            return
+
+        partes = comando.split()
+        comando_principal = partes[0]
+        argumentos = partes[1:]
+
+        if comando_principal not in COMMANDS_AVAILABLES:
+            entrada.config(fg=TERMINAL_STYLE["input_invalid"])
+            return
+
+        subcomandos_permitidos = COMMANDS_AVAILABLES[comando_principal]
+
+        if not argumentos:
+            if "" in subcomandos_permitidos:
+                entrada.config(fg=TERMINAL_STYLE["input_valid"])
+            else:
+                entrada.config(fg=TERMINAL_STYLE["input_invalid"])
+        else:
+            primer_parametro = argumentos[0]
+            if "<plugin>" in subcomandos_permitidos or "<version>" in subcomandos_permitidos:
+                entrada.config(fg=TERMINAL_STYLE["input_valid"])
+            elif primer_parametro in subcomandos_permitidos:
+                entrada.config(fg=TERMINAL_STYLE["input_valid"])
+            else:
+                entrada.config(fg=TERMINAL_STYLE["input_invalid"])
+    
+    entrada.bind("<KeyRelease>", validate_command)
+    
     def imprimir_salida(texto, tag="stdout"):
         term_output.config(state='normal')
         term_output.insert("end", texto + "\n", tag)
         term_output.insert("end", "➜ ", "stdout")
         term_output.config(state='disabled')
         term_output.see("end")
+        
+    def imprimir_salida_con_enlaces(texto, tag="stdout"):
+        term_output.config(state='normal')
+        
+        # RegEx para detectar enlaces
+        enlaces = list(re.finditer(r"(https?://[^\s]+)", texto))
+        
+        if not enlaces:
+            term_output.insert("end", texto + "\n", tag)
+        else:
+            idx = 0
+            for enlace in enlaces:
+                inicio, fin = enlace.span()
+                term_output.insert("end", texto[idx:inicio], tag)
+                term_output.insert("end", texto[inicio:fin], ("link",))
+                idx = fin
+            term_output.insert("end", texto[idx:] + "\n", tag)
+        
+        term_output.insert("end", "➜ ", tag)
+        term_output.config(state='disabled')
+        term_output.see("end")
 
+    def abrir_enlace(event):
+        index = term_output.index(f"@{event.x},{event.y}")
+        palabra = term_output.get(f"{index} wordstart", f"{index} wordend")
+        if palabra.startswith("http"):
+            webbrowser.open(palabra)
+            
+    term_output.tag_bind("link", "<Button-1>", abrir_enlace)
+    
     def ejecutar_comando(event=None):
         nonlocal historial_index
         comando = entrada.get().strip()
@@ -2449,7 +2526,10 @@ def mostrar_terminal():
                 fecha = match["published_at"]
                 assets = [a["name"] for a in match["assets"]]
 
-                imprimir_salida(f"📌 Versión: {version_especifica}\nName: {nombre}\nDate: {fecha}\n\n{cuerpo}\n", "stdout")
+                imprimir_salida(f"📌 Versión: {version_especifica}", "stdout")
+                imprimir_salida(f"Name: {nombre}", "stdout")
+                imprimir_salida(f"Date: {fecha}", "stdout")
+                imprimir_salida_con_enlaces(cuerpo or "*No description available*", "stdout")
                 if assets:
                     imprimir_salida("Available files:\n" + "\n".join([f"  • {a}" for a in assets]), "stdout")
                 else:
