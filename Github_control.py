@@ -2324,10 +2324,10 @@ def mostrar_terminal():
             imprimir_salida(
                 "🆘 Available commands:\n"
                 "  help\n"
-                "  plugins list\n"
+                "  plugins list or plugins installed\n"
                 "  install <plugin>\n"
                 "  uninstall <plugin>\n"
-                "  update [versión]\n"
+                "  update or update check or update <version>\n"
                 "  versions\n"
                 "  versions <version>\n"
                 "  clear", "stdout"
@@ -2340,7 +2340,7 @@ def mostrar_terminal():
             if params:
                 plugin = " ".join(params)
                 imprimir_salida(f"🔧 Installing plugin '{plugin}'...")
-                threading.Thread(target=simular_tarea, args=(f"✅ Plugin '{plugin}' installed correctly.",), daemon=True).start()
+                threading.Thread(target=instalar_plugin, args=(plugin,), daemon=True).start()
             else:
                 imprimir_salida("❌ You must specify a plugin name", "stderr")
 
@@ -2348,18 +2348,22 @@ def mostrar_terminal():
             if params:
                 plugin = " ".join(params)
                 imprimir_salida(f"🗑️ Uninstalling plugin '{plugin}'...")
-                threading.Thread(target=simular_tarea, args=(f"✅ Plugin '{plugin}' uninstalled.",), daemon=True).start()
+                threading.Thread(target=uninstall_plugin, args=(plugin,), daemon=True).start()
             else:
                 imprimir_salida("❌ You must specify a plugin name", "stderr")
 
         elif cmd == "update":
             if params:
-                version = params[0]
-                imprimir_salida(f"⬇️ Downloading version {version}...")
-                threading.Thread(target=descargar_version, args=(version,), daemon=True).start()
+                if params[0] == "check":
+                    imprimir_salida("🔍 Checking for application updates...")
+                    threading.Thread(target=verificar_actualizacion_app, daemon=True).start()
+                else:
+                    version = params[0]
+                    imprimir_salida(f"⬇️ Downloading version {version}...")
+                    threading.Thread(target=descargar_version, args=(version,), daemon=True).start()
             else:
                 imprimir_salida("📦 Updating to the latest version...")
-                threading.Thread(target=simular_tarea, args=("✅ App updated correctly.",), daemon=True).start()
+                threading.Thread(target=descargar_latest_version, daemon=True).start()
 
         elif cmd == "versions":
             version = params[0] if params else None
@@ -2367,35 +2371,69 @@ def mostrar_terminal():
             threading.Thread(target=mostrar_versions, args=(version,), daemon=True).start()
             
         elif cmd == "plugins":
-            if len(params) >= 1 and params[0] == "list":
-                imprimir_salida("🔎 Searching available plugins...")
+            if params[0] == "list":
+                imprimir_salida("🔍 Searching available plugins...")
                 threading.Thread(target=listar_plugins_disponibles, daemon=True).start()
+            elif params[0] == "installed":
+                imprimir_salida("🔍 Searching installed plugins...")
+                threading.Thread(target=list_plugins_installed, daemon=True).start()
             else:
                 imprimir_salida("❌ Invalid subcommand. Use: plugins list", "stderr")
 
         else:
             imprimir_salida(f"❓ Unrecognized command: {comando}", "stderr")
     
+    def verificar_actualizacion_app():
+        try:
+            local_version = main_version.replace("Version: ", "").strip()
+
+            url = "https://api.github.com/repos/Nooch98/Github_Control/releases/latest"
+            r = requests.get(url, timeout=10)
+            r.raise_for_status()
+            remote_data = r.json()
+
+            remote_version = remote_data.get("tag_name") or remote_data.get("name")
+            
+            if not remote_version:
+                imprimir_salida("⚠️ Unable to get application version from GitHub.", "stderr")
+                return
+
+            if remote_version.startswith("v"):
+                remote_version = remote_version[1:]
+            
+            if remote_version.startswith("."):
+                remote_version = remote_version[1:]
+
+            if local_version != remote_version:
+                imprimir_salida(f"⚠️ A new version of the application is available: {remote_version}", "stdout")
+                imprimir_salida("ℹ️ You can use the 'update' command to update the application.", "stdout")
+            else:
+                imprimir_salida(f"✅ Application is up to date: {local_version}", "stdout")
+                    
+        except requests.RequestException as e:
+            imprimir_salida(f"❌ Error checking for application updates: {e}", "stderr")
+    
     def listar_plugins_disponibles():
         try:
-            url = "https://api.github.com/repos/Nooch98/Gtihub_control/contents/github_control_plugins"
+            url = "https://api.github.com/repos/Nooch98/Github_Control/contents/github_control_plugins"
             r = requests.get(url, timeout=10)
             r.raise_for_status()
             data = r.json()
 
-            plugins = [item['name'] for item in data if item['name'].endswith(".py")]
+            # Ahora buscamos carpetas, no archivos .py
+            plugins = [item['name'] for item in data if item['type'] == "dir"]
 
             if not plugins:
-                imprimir_salida("⚠️ No se encontraron plugins disponibles.", "stderr")
+                imprimir_salida("⚠️ No available plugins found.", "stderr")
                 return
 
-            imprimir_salida("📦 Plugins disponibles:\n" + "\n".join([f"  • {plugin}" for plugin in plugins]), "stdout")
+            imprimir_salida("📦 Available plugins:\n" + "\n".join([f"  • {plugin}" for plugin in plugins]), "stdout")
         except requests.RequestException as e:
-            imprimir_salida(f"❌ Error obteniendo plugins: {e}", "stderr")
+            imprimir_salida(f"❌ Error getting plugins: {e}", "stderr")
            
     def mostrar_versions(version_especifica=None):
         try:
-            url = "https://api.github.com/repos/Nooch98/Gtihub_control/releases"
+            url = "https://api.github.com/repos/Nooch98/Github_Control/releases"
             r = requests.get(url, timeout=10)
             r.raise_for_status()
             data = r.json()
@@ -2403,7 +2441,7 @@ def mostrar_terminal():
             if version_especifica:
                 match = next((v for v in data if v["tag_name"] == version_especifica), None)
                 if not match:
-                    imprimir_salida(f"❌ Versión '{version_especifica}' no encontrada.", "stderr")
+                    imprimir_salida(f"❌ Versión '{version_especifica}' not found.", "stderr")
                     return
 
                 nombre = match["name"]
@@ -2411,21 +2449,21 @@ def mostrar_terminal():
                 fecha = match["published_at"]
                 assets = [a["name"] for a in match["assets"]]
 
-                imprimir_salida(f"📌 Versión: {version_especifica}\nNombre: {nombre}\nFecha: {fecha}\n\n{cuerpo}\n", "stdout")
+                imprimir_salida(f"📌 Versión: {version_especifica}\nName: {nombre}\nDate: {fecha}\n\n{cuerpo}\n", "stdout")
                 if assets:
-                    imprimir_salida("Archivos disponibles:\n" + "\n".join([f"  • {a}" for a in assets]), "stdout")
+                    imprimir_salida("Available files:\n" + "\n".join([f"  • {a}" for a in assets]), "stdout")
                 else:
-                    imprimir_salida("⚠️ No hay instaladores en esta versión.", "stderr")
+                    imprimir_salida("⚠️ There are no installers in this version.", "stderr")
             else:
                 for v in data:
                     imprimir_salida(f"🔹 {v['tag_name']} - {v['name']}", "stdout")
 
         except requests.RequestException as e:
-            imprimir_salida(f"❌ Error obteniendo versiones: {e}", "stderr")
+            imprimir_salida(f"❌ Error getting versions: {e}", "stderr")
             
     def descargar_version(version):
         try:
-            repo = "Nooch98/Github_control"
+            repo = "Nooch98/Github_Control"
             api_url = f"https://api.github.com/repos/{repo}/releases/tags/{version}"
             response = requests.get(api_url)
             response.raise_for_status()
@@ -2439,32 +2477,144 @@ def mostrar_terminal():
                     break
 
             if not exe_asset:
-                imprimir_salida(f"❌ No se encontró ningún instalador .exe en la versión {version}", "stderr")
+                imprimir_salida(f"❌ No .exe installer found for version {version}", "stderr")
                 return
 
             exe_url = exe_asset["browser_download_url"]
             exe_name = exe_asset["name"]
             destino = os.path.join(os.getcwd(), exe_name)
 
-            imprimir_salida(f"⬇️ Descargando '{exe_name}'...")
+            imprimir_salida(f"⬇️ Downloading '{exe_name}'...")
 
             with requests.get(exe_url, stream=True) as r:
                 r.raise_for_status()
                 with open(destino, 'wb') as f:
                     shutil.copyfileobj(r.raw, f)
 
-            imprimir_salida(f"✅ Versión {version} descargada como '{exe_name}'")
+            imprimir_salida(f"✅ Versión {version} downloaded as '{exe_name}'")
 
-            imprimir_salida(f"🚀 Ejecutando instalador...")
+            imprimir_salida(f"🚀 Running installer...")
             subprocess.Popen([destino], shell=True)
 
         except Exception as e:
-            imprimir_salida(f"❌ Error al descargar la versión {version}: {e}", "stderr")
+            imprimir_salida(f"❌ Error downloading version {version}: {e}", "stderr")
+            
+    def descargar_latest_version():
+        try:
+            repo = "Nooch98/Github_Control"
+            api_url = f"https://api.github.com/repos/{repo}/releases/latest"
+            response = requests.get(api_url)
+            response.raise_for_status()
+            release = response.json()
+
+            # Buscar el archivo .exe entre los assets
+            exe_asset = None
+            for asset in release.get("assets", []):
+                if asset["name"].endswith(".exe"):
+                    exe_asset = asset
+                    break
+
+            if not exe_asset:
+                imprimir_salida(f"❌ No .exe installer found for latest version", "stderr")
+                return
+
+            exe_url = exe_asset["browser_download_url"]
+            exe_name = exe_asset["name"]
+            destino = os.path.join(os.getcwd(), exe_name)
+
+            imprimir_salida(f"⬇️ Downloading '{exe_name}'...")
+
+            with requests.get(exe_url, stream=True) as r:
+                r.raise_for_status()
+                with open(destino, 'wb') as f:
+                    shutil.copyfileobj(r.raw, f)
+
+            imprimir_salida(f"✅ Latest version downloaded as '{exe_name}'")
+
+            imprimir_salida(f"🚀 Running installer...")
+            subprocess.Popen([destino], shell=True)
+
+        except Exception as e:
+            imprimir_salida(f"❌ Error downloading latest version: {e}", "stderr")
     
     def simular_tarea(mensaje):
         import time
         time.sleep(1.2)
         imprimir_salida(mensaje)
+    
+    def list_plugins_installed(plugin_dir=PLUGINS_DIR):
+        if not os.path.exists(plugin_dir):
+            imprimir_salida("❌ Plugins directory not found")
+            return
+        
+        plugins = []
+        
+        for name in os.listdir(plugin_dir):
+            path = os.path.join(plugin_dir, name)
+            if os.path.isdir(path):
+                plugins.append(name)
+        
+        if not plugins:
+            imprimir_salida("ℹ️ Info", "No plugins installed.")
+        else:
+            imprimir_salida("🔎 Plugins instalados:\n" + "\n".join([f"  • {plugin}" for plugin in plugins]), "stdout")
+    
+    def uninstall_plugin(plugin, plugin_dir=PLUGINS_DIR):
+        plugin_path = os.path.join(plugin_dir, plugin)
+        
+        if not os.path.exists(plugin_path):
+            imprimir_salida(f"❌ Plugin {plugin} not found")
+            return
+        
+        try:
+            shutil.rmtree(plugin_path, ignore_errors=True)
+            imprimir_salida(f"✅ Plugin {plugin} uninstalled successfully.")
+        except Exception as e:
+            imprimir_salida(f"❌ Error uninstalling plugin: {e}")
+        
+    def instalar_plugin(plugin):
+        import hashlib
+        base_url = "https://raw.githubusercontent.com/Nooch98/Github_Control/main/github_control_plugins"
+        plugin_dir = os.path.join("github_control_plugins", plugin)
+        os.makedirs(plugin_dir, exist_ok=True)
+        
+        try:
+            json_url = f"{base_url}/{plugin}/{plugin}.json"
+            r_json = requests.get(json_url, timeout=10)
+            r_json.raise_for_status()
+            plugin_info = r_json.json()
+            
+            exe_name = plugin_info.get("entry")
+            exe_hash_expected = plugin_info.get("hash")
+            
+            if not exe_name or not exe_hash_expected:
+                imprimir_salida(f"❌ {plugin} invalid or incomplete")
+                return
+            
+            exe_url = f"{base_url}/{plugin}/{exe_name}"
+            exe_path = os.path.join(plugin_dir, exe_name)
+            r_exe = requests.get(exe_url, timeout=10)
+            r_exe.raise_for_status()
+            
+            sha256 = hashlib.sha256()
+            with open(exe_path, "wb") as f:
+                for chunk in iter(lambda: f.read(4096), b""):
+                    sha256.update(chunk)
+                    
+            exe_hash_actual = sha256.hexdigest()
+            
+            if exe_hash_expected.lower() != exe_hash_actual.lower():
+                imprimir_salida(f"❌ Hash of {exe_name} is not valid")
+                os.remove(exe_path)
+                return
+            
+            imprimir_salida(f"✅ Plugin {plugin} installed successfully.")
+        except requests.RequestException as e:
+            imprimir_salida(f"❌ Error installing plugin: {e}")
+            shutil.rmtree(plugin_dir, ignore_errors=True)
+        except Exception as e:
+            imprimir_salida(f"❌ Error: {e}")
+            shutil.rmtree(plugin_dir, ignore_errors=True)
 
     def navegar_historial(event):
         nonlocal historial_index
@@ -2662,7 +2812,6 @@ help_menu = tk.Menu(menu, tearoff=0)
 menu.add_cascade(label='help', menu=help_menu)
 help_menu.add_cascade(label='Help', command=show_help)
 help_menu.add_cascade(label='Api Limits', command=check_api_limits)
-help_menu.add_cascade(label="Donate", command=donate_dev)
 
 mygithub_frame = ttk.Frame(notebook)
 commits_frame = ttk.Frame(notebook)
