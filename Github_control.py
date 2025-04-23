@@ -1,3 +1,4 @@
+from doctest import Example
 from pydoc import text
 import select
 import tkinter as tk
@@ -2771,6 +2772,247 @@ def show_plugins_window():
 
     list_plugins.bind("<Double-1>", execute_plugin)
 
+def obtain_workflows(repo):
+    owner, repo_name = repo.split("/")
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    url = f"https://api.github.com/repos/{owner}/{repo_name}/actions/runs"
+    
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        return r.json().get("workflow_runs", [])
+    except requests.RequestException as e:
+        return {"error": str(e)}
+    
+def show_workflow(repo):
+    full_name = f"{GITHUB_USER}/{repo}"
+    workflows = obtain_workflows(full_name)
+    notebook.select(actions_frame)
+    
+    tree = ttk.Treeview(actions_frame, columns=("name", "status", "conclusion", "duration", "url", "run_id"), show="headings")
+    tree.heading("name", text="Workflow")
+    tree.heading("status", text="Status")
+    tree.heading("conclusion", text="Conclusion")
+    tree.heading("duration", text="Duration")
+    tree.heading("url", text="URL")
+    
+    tree.pack(fill="both", expand=True)
+    
+    btn_rerun = ttk.Button(actions_frame, text="🔁 Re-run selected", command=lambda: rerun_workflow(tree, repo))
+    btn_rerun.pack(side="left", padx=5, pady=5)
+    
+    btn_details = ttk.Button(actions_frame, text="🔎 View Details", command=lambda: show_workflow_details(tree, repo))
+    btn_details.pack(side="left", padx=5, pady=5)
+    
+    if isinstance(workflows, dict) and "error" in workflows:
+        ms.showerror("Error", f"Failed to get workflows:\n{workflows['error']}")
+        return
+    
+    for wf in workflows:
+        name = wf.get("name", "Unnamed")
+        status = wf.get("status", "")
+        conclusion = wf.get("conclusion", "")
+        created = wf.get("created_at", "")
+        updated = wf.get("updated_at", "")
+        html_url = wf.get("html_url", "")
+        
+        duration = "-"
+        if created and updated:
+            try:
+                from dateutil import parser
+                dur = parser.parse(updated) - parser.parse(created)
+                duration = str(dur).split(".")[0]
+            except:
+                pass
+        
+        tree.insert("", "end", values=(name, status, conclusion, duration, html_url, str(wf["id"])))
+
+    def abrir_url(event):
+        selected = tree.selection()
+        if selected:
+            url = tree.item(selected[0], "values")[4]
+            if url:
+                webbrowser.open(url)
+
+    tree.bind("<Double-1>", abrir_url)
+    
+    def obtain_jobs_of_run(repo):
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        selected = tree.selection()
+        run_id = tree.item(selected[0], "values")[5]
+        url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/jobs"
+        r = requests.get(url, headers=headers)
+        r.raise_for_status()
+        return r.json().get("jobs", [])
+    
+    def rerun_workflow(tree, repo):
+        selected = tree.selection()
+        if not selected:
+            ms.showinfo("INFO", "Select a workflow first")
+            return
+        
+        run_id = tree.item(selected[0], "values")[5]
+        
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/rerun"
+        
+        try:
+            r = requests.post(url, headers=headers)
+            if r.status_code == 201:
+                ms.showinfo("Success", "Workflow re-run started.")
+            else:
+                ms.showerror("Error", f"Failed to re-run: {r.text}")
+        except Exception as e:
+            ms.showerror("Error", str(e))
+            
+    def show_workflow_details(tree, repo):
+        selected = tree.selection()
+        if not selected:
+            ms.showinfo("INFO", "Select workflow first.")
+            return
+        
+        run_id = tree.item(selected[0], "values")[5]
+        
+        headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+        url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}"
+        
+        try:
+            r = requests.get(url, headers=headers)
+            r.raise_for_status()
+            data = r.json()
+
+            detalles = (
+                f"🧪 Workflow: {data.get('name')}\n"
+                f"Status: {data.get('status')}\n"
+                f"Conclusion: {data.get('conclusion')}\n"
+                f"Event: {data.get('event')}\n"
+                f"Commit: {data.get('head_commit', {}).get('message', 'No message')}\n"
+                f"Actor: {data.get('actor', {}).get('login')}\n"
+                f"Created: {data.get('created_at')}\n"
+                f"Updated: {data.get('updated_at')}\n"
+            )
+
+            top = tk.Toplevel()
+            top.title("Workflow Details")
+            ttk.Label(top, text=detalles, justify="left", font=("Consolas", 10)).pack(padx=10, pady=10)
+            ver_jobs_de_run(repo)
+            
+        except Exception as e:
+            ms.showerror("Error", str(e))
+
+    def ver_jobs_de_run(repo):
+        selected = tree.selection()
+        run_id = tree.item(selected[0], "values")[5]
+        jobs = obtain_jobs_of_run(repo)
+
+        top = tk.Toplevel()
+        top.title(f"Jobs del workflow {run_id}")
+        top.geometry("700x400")
+
+        tree = ttk.Treeview(top, columns=("name", "status", "conclusion", "started", "completed"), show="headings")
+        for col in tree["columns"]:
+            tree.heading(col, text=col.capitalize())
+
+        for job in jobs:
+            tree.insert("", "end", values=(
+                job.get("name"),
+                job.get("status"),
+                job.get("conclusion"),
+                job.get("started_at"),
+                job.get("completed_at")
+            ))
+
+        tree.pack(fill="both", expand=True)
+        
+def create_workflow(repo):
+        from pygments.lexers.data import YamlLexer
+        ventana = tk.Toplevel()
+        ventana.title(f"Create Workflow - {repo}")
+        ventana.geometry("800x600")
+        
+        ttk.Label(ventana, text="Workflow Name (ej: deploy.yml):").pack(pady=5)
+        name_entry = ttk.Entry(ventana, width=100)
+        name_entry.insert(0, "new_workflow.yml")
+        name_entry.pack(fill='x', padx=5)
+        
+        editor = CodeView(ventana, wrap="word", lexer=YamlLexer())
+        editor.pack(expand=True, fill="both", padx=5, pady=5)
+        
+        editor.insert("1.0",
+"""name: CI
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run a one-line script
+        run: echo Hello, world!
+""")
+        
+        def upload_workflow():
+            name = name_entry.get().strip()
+            content = editor.get("1.0", "end-1c")
+            
+            if not name.endswith(".yml"):
+                ms.showerror("Invalid Name", "The file must end in .yml")
+                return
+            
+            path = f".github/workflows/{name}"
+            url = f"https://api.github.com/repos/{repo}/contents/{path}"
+            headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github+json"}
+            
+            data = {
+            "message": f"Add workflow {name}",
+            "content": base64.b64encode(content.encode()).decode(),
+            "branch": "main"
+            }
+            
+            try:
+                r = requests.put(url, headers=headers, data=json.dumps(data))
+                if r.status_code in [200, 201]:
+                    ms.showinfo("Success", f"Workflow {name} created successfully.")
+                    ventana.destroy()
+                else:
+                    ms.showerror("ERROR", f"Could not upload:\n{r.text}")
+            except Exception as e:
+                ms.showerror("ERROR", str(e))
+        
+        def validate_yaml(contenido):
+            import yaml
+            try:
+                yaml.safe_load(contenido)
+                return True, None
+            except yaml.YAMLError as e:
+                return False, str(e)
+        
+        def validate_workflow(editor):
+            content = editor.get("1.0", "end-1c")
+            valid, error = validate_yaml(content)
+            if valid:
+                ms.showinfo("YAML Valid", "✅ The workflow has no syntax errors")
+            else:
+                ms.showerror("YAML Invalid", f"❌ Syntax error:\n\n{error}")
+                
+        def validar_automatico(event):
+            contenido = editor.get("1.0", "end-1c")
+            valido, error = validate_yaml(contenido)
+            editor.configure(background="#1e1e1e" if valido else "#2a0000")
+        
+        editor.bind("<KeyRelease>", validar_automatico)
+        
+        btn_upload = ttk.Button(ventana, text="📤 Upload workflow", command=upload_workflow)
+        btn_upload.pack(side='left', expand=True, padx=5, pady=5)
+        
+        btn_verify = ttk.Button(ventana, text="✅ Validate Yaml", command=validate_workflow(editor))
+        btn_verify.pack(side='left', expand=True, padx=5, pady=5)
+
 path_icon = resource_path("github_control.ico")
 all_project_items = []
 cuenta_seleccionada = {"token": None, "username": None}
@@ -2881,9 +3123,6 @@ def iniciar_aplicacion():
     check_github_status()
     search_code_on_github()
 
-def donate_dev():
-    pass
-
 menu = tk.Menu(root, tearoff=0)
 root.config(menu=menu)
 menu.add_command(label="Plugins", command=show_plugins_window)
@@ -2903,6 +3142,7 @@ search_frame = ttk.Frame(notebook)
 repo_view_frame = ttk.Frame(notebook)
 search_code_frame = ttk.Frame(notebook)
 security_frame = ttk.Frame(notebook)
+actions_frame = ttk.Frame(notebook)
 
 
 notebook.add(mygithub_frame, text="My GitHub", padding=5)
@@ -2910,6 +3150,7 @@ notebook.add(commits_frame, text="Repo Commits", padding=5)
 notebook.add(file_frame, text="Files", padding=5)
 notebook.add(release_frame, text="Releases", padding=5)
 notebook.add(edit_frame, text="Edit Repository", padding=5)
+notebook.add(actions_frame, text="Github Actions", padding=5)
 notebook.add(security_frame, text="Security", padding=5)
 notebook.add(issues_frame, text="Issues", padding=5)
 notebook.add(stats_frame, text="Stats", padding=5)
@@ -2948,6 +3189,8 @@ context_menu.add_command(label="🔐 Security Alerts", command=lambda: on_securi
 context_menu.add_command(label="➕ Create New Repository", command=create_repository_github)
 context_menu.add_command(label="📂 Clone Repository", command=clone_repository)
 context_menu.add_command(label="🗂️View Files", command=lambda: open_repo_files1(projectstree.item(projectstree.selection()[0], "values")[0]))
+context_menu.add_command(label="   Show Workflows", command=lambda: show_workflow(projectstree.item(projectstree.selection()[0], "values")[0]))
+context_menu.add_command(label=" New Workflow", command=lambda: create_workflow(projectstree.item(projectstree.selection()[0], "values")[0]))
 context_menu.add_command(label="📊 View Statistics", command=lambda: show_repo_stats(projectstree.item(projectstree.selection()[0], "values")[0]))
 context_menu.add_command(label="📦 Create Backup", command=lambda: backup_repository(projectstree.item(projectstree.selection()[0], "values")[0]))
 context_menu.add_command(label="🐞 View Issues", command=lambda: show_repo_issues(projectstree.item(projectstree.selection()[0], "values")[0]))
