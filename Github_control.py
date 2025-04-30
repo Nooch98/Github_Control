@@ -1,4 +1,5 @@
 from doctest import Example
+from genericpath import exists
 from pydoc import text
 import select
 import tkinter as tk
@@ -29,6 +30,7 @@ from io import BytesIO, StringIO
 from tkinter.scrolledtext import ScrolledText
 from ping3 import ping
 from datetime import datetime
+from cryptography.fernet import Fernet
 
 main_version = "Version: 0.0.2"
 title_version = "_V.0.0.2"
@@ -36,11 +38,47 @@ str_title_version = str(title_version)
 version = str(main_version)
 issue_list = None
 
+KEY_FILE = "Acounts.key"
 CONFIG_FILE = "config.json"
 CACHE_FILE = "data/cache.json"
 GITHUB_ACCOUNTS_FILE = "github_accounts.json"
 REPO_ACTIVITY_FILE = "repo_activity.json"
 PLUGINS_DIR = "github_control_plugins"
+
+def generar_key():
+    if not os.path.exists(KEY_FILE):
+        key = Fernet.generate_key()
+        with open(KEY_FILE, "wb") as key_file:
+            key_file.write(key)
+
+def load_key():
+    if os.path.exists(KEY_FILE):
+        with open(KEY_FILE, "rb") as f:
+            return f.read()
+    else:
+        raise FileNotFoundError("The key file was not found.")
+
+def cypher_token(token):
+    if not os.path.exists(KEY_FILE):
+        generar_key()
+    key = load_key()
+    fernet = Fernet(key)
+    return fernet.encrypt(token.encode()).decode()
+
+def decypher_token(token):
+    try:
+        key = load_key()
+        fernet = Fernet(key)
+
+        if isinstance(token, str):
+            token = token.encode()
+
+        decrypted = fernet.decrypt(token).decode()
+        return decrypted
+
+    except Exception as e:
+        ms.showerror("ERROR", f"❌ Error decrypting token: {e}")
+        return None
 
 def load_cache():
     if os.path.exists(CACHE_FILE):
@@ -74,27 +112,39 @@ def load_github_accounts():
     if os.path.exists(GITHUB_ACCOUNTS_FILE):
         try:
             with open(GITHUB_ACCOUNTS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                for cuenta in data["github_accounts"]:
+                    cuenta["token"] = decypher_token(cuenta["token"])
+                return data
         except json.JSONDecodeError:
             return {"github_accounts": []}
     return {"github_accounts": []}
 
 def save_github_accounts(data):
-    with open(GITHUB_ACCOUNTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+    for cuenta in data["github_accounts"]:
+        if not cuenta["token"].startswith("gAAAAA"):
+            cuenta["token"] = cypher_token(cuenta["token"])
+    
+    try:
+        with open(GITHUB_ACCOUNTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+    except IOError as e:
+        ms.showerror("Error", f"❌ Error saving accounts: {e}")
 
 def search_github_key():
     return cuenta_seleccionada.get("token")
 
 def is_github_token_valid(token):
-    url = "https://api.github.com/user"
-    headers = {"Authorization": f"Bearer {token}"}
     try:
-        response = requests.get(url, headers=headers)
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        response = requests.get("https://api.github.com/user", headers=headers)
         response.raise_for_status()
-        return response.status_code == 200
+        return True
     except requests.exceptions.RequestException:
-        return False
+        return False 
 
 def obtain_github_repos():
     cache = load_cache()
@@ -2617,11 +2667,6 @@ def mostrar_terminal():
         except Exception as e:
             imprimir_salida(f"❌ Error downloading latest version: {e}", "stderr")
     
-    def simular_tarea(mensaje):
-        import time
-        time.sleep(1.2)
-        imprimir_salida(mensaje)
-    
     def list_plugins_installed(plugin_dir=PLUGINS_DIR):
         if not os.path.exists(plugin_dir):
             imprimir_salida("❌ Plugins directory not found")
@@ -3046,21 +3091,28 @@ def mostrar_selector_cuenta(master_frame):
             username = lista.item(selected)["values"][0]
             for cuenta in cuentas:
                 if cuenta["username"] == username:
-                    cuenta_seleccionada["token"] = cuenta["token"]
-                    cuenta_seleccionada["username"] = cuenta["username"]
+                    try:
+                        # El token ya está descifrado, no es necesario descifrarlo de nuevo
+                        cuenta_seleccionada["username"] = cuenta["username"]
+                        cuenta_seleccionada["token"] = cuenta["token"]  # Token ya descifrado
+                    except Exception as e:
+                        ms.showerror("Error", f"❌ Error selecting account: {e}")
+                        return
+
                     frame_selector.destroy()
                     notebook.pack(expand=True, fill="both")
                     version_label.pack(side='right', fill='x', padx=5, pady=5)
                     status_label.pack(side='left', fill='x', padx=5, pady=5)
                     iniciar_aplicacion()
                     return
-        ms.showerror("Error", "You need select one acount.")
+        ms.showerror("Error", "You need to select one account.")
 
     def agregar_cuenta():
-        token = simpledialog.askstring("🔑 New API Key", "Agree github api key token:", show="*")
+        token = simpledialog.askstring("🔑 New API Key", "Enter GitHub API token:", show="*")
         if token and is_github_token_valid(token):
             user = obtener_usuario(token)["login"]
-            cuentas.append({"username": user, "token": token})
+            encrypted_token = cypher_token(token)  # Cifra el token aquí
+            cuentas.append({"username": user, "token": encrypted_token})
             save_github_accounts({"github_accounts": cuentas})
             lista.insert("", "end", values=(user,))
             ms.showinfo("✔️ Account Added", f"{user} has been added.")
@@ -3082,7 +3134,7 @@ def obtener_usuario(token):
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"Error getting user: {e}")
+        ms.showerror("ERROR", f"Error getting user: {e}")
         return None
 
 def actualizar_username_label():
@@ -3123,13 +3175,45 @@ def iniciar_aplicacion():
     check_github_status()
     search_code_on_github()
 
+def acountinfo_show():
+    token = cuenta_seleccionada.get("token")
+    if not token:
+        ms.showerror("ERROR", "Any Account active.")
+        return
+    
+    try:
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        
+        user_resp = requests.get("https://api.github.com/user", headers=headers).json()
+        repos_resp = requests.get("https://api.github.com/user/repos?per_page=100", headers=headers).json()
+        starred_resp = requests.get("https://api.github.com/user/starred?per_page=100", headers=headers).json()
+        rate_resp = requests.get("https://api.github.com/rate_limit", headers=headers).json()
+        
+        info = f""" 👤 User: {user_resp.get("login", "N/A")}
+    📧 Email: {user_resp.get("email", "N/A")}
+    📁 Repos: {len(repos_resp)}
+    ⭐ Starred repos: {len(starred_resp)}
+    🔧 Forks: {sum(1 for r in repos_resp if r.get("fork"))}
+    📊 API Limit: {rate_resp['rate']['remaining']} / {rate_resp['rate']['limit']}"""
+        
+        ms.showinfo("🔍 GitHub Account Info", info)
+    except Exception as e:
+        ms.showerror("❌ Error", f"Could not get account information:\n{e}")
+
 menu = tk.Menu(root, tearoff=0)
 root.config(menu=menu)
+github_menu = tk.Menu(menu, tearoff=0)
+menu.add_cascade(label="Github Acount", menu=github_menu)
+github_menu.add_command(label="Acount Info", command=acountinfo_show)
+#github_menu.add_command(label="Change Account", command=change_account)
 menu.add_command(label="Plugins", command=show_plugins_window)
 help_menu = tk.Menu(menu, tearoff=0)
 menu.add_cascade(label='help', menu=help_menu)
 help_menu.add_cascade(label='Help', command=show_help)
-help_menu.add_cascade(label='Api Limits', command=check_api_limits)
+help_menu.add_cascade(label='Show Terminal', command=mostrar_terminal)
 
 mygithub_frame = ttk.Frame(notebook)
 commits_frame = ttk.Frame(notebook)
@@ -3188,9 +3272,9 @@ context_menu.add_command(label="⭐ Quit Star", command=lambda: unstar_repositor
 context_menu.add_command(label="🔐 Security Alerts", command=lambda: on_security_analysis_button_click())
 context_menu.add_command(label="➕ Create New Repository", command=create_repository_github)
 context_menu.add_command(label="📂 Clone Repository", command=clone_repository)
-context_menu.add_command(label="🗂️View Files", command=lambda: open_repo_files1(projectstree.item(projectstree.selection()[0], "values")[0]))
-context_menu.add_command(label="   Show Workflows", command=lambda: show_workflow(projectstree.item(projectstree.selection()[0], "values")[0]))
-context_menu.add_command(label=" New Workflow", command=lambda: create_workflow(projectstree.item(projectstree.selection()[0], "values")[0]))
+context_menu.add_command(label="🗂️ View Files", command=lambda: open_repo_files1(projectstree.item(projectstree.selection()[0], "values")[0]))
+context_menu.add_command(label="🧰 Show Workflows", command=lambda: show_workflow(projectstree.item(projectstree.selection()[0], "values")[0]))
+context_menu.add_command(label="✨ New Workflow", command=lambda: create_workflow(projectstree.item(projectstree.selection()[0], "values")[0]))
 context_menu.add_command(label="📊 View Statistics", command=lambda: show_repo_stats(projectstree.item(projectstree.selection()[0], "values")[0]))
 context_menu.add_command(label="📦 Create Backup", command=lambda: backup_repository(projectstree.item(projectstree.selection()[0], "values")[0]))
 context_menu.add_command(label="🐞 View Issues", command=lambda: show_repo_issues(projectstree.item(projectstree.selection()[0], "values")[0]))
@@ -3247,5 +3331,6 @@ version_label = ttk.Label(root, text=f'{version}', bootstyle='info')
 status_label = ttk.Label(root, text=f'Github Connection Status: Checking...', bootstyle='info')
 
 if __name__ == "__main__":
+    generar_key()
     mostrar_selector_cuenta(root)
     root.mainloop()
