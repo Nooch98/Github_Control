@@ -1,7 +1,4 @@
-from doctest import Example
-from genericpath import exists
-from pydoc import text
-import select
+import platform
 import tkinter as tk
 import sys
 import ttkbootstrap as ttk
@@ -50,6 +47,11 @@ def generar_key():
         key = Fernet.generate_key()
         with open(KEY_FILE, "wb") as key_file:
             key_file.write(key)
+        
+        if platform == "Windows":
+            os.system(f'attrib +H {KEY_FILE}')
+        elif platform == "Linux":
+            pass
 
 def load_key():
     if os.path.exists(KEY_FILE):
@@ -2970,26 +2972,24 @@ def show_workflow(repo):
         tree.pack(fill="both", expand=True)
         
 def create_workflow(repo):
-        from pygments.lexers.data import YamlLexer
-        ventana = tk.Toplevel()
-        ventana.title(f"Create Workflow - {repo}")
-        ventana.geometry("800x600")
-        
-        ttk.Label(ventana, text="Workflow Name (ej: deploy.yml):").pack(pady=5)
-        name_entry = ttk.Entry(ventana, width=100)
-        name_entry.insert(0, "new_workflow.yml")
-        name_entry.pack(fill='x', padx=5)
-        
-        editor = CodeView(ventana, wrap="word", lexer=YamlLexer())
-        editor.pack(expand=True, fill="both", padx=5, pady=5)
-        
-        editor.insert("1.0",
-"""name: CI
-
+    from pygments.lexers.data import YamlLexer
+    ventana = tk.Toplevel()
+    ventana.title(f"Create Workflow - {repo}")
+    ventana.geometry("800x600")
+    ventana.iconbitmap(path_icon)
+    
+    ttk.Label(ventana, text="Workflow Name (ej: deploy.yml):").pack(pady=5)
+    name_entry = ttk.Entry(ventana, width=100)
+    name_entry.insert(0, "new_workflow.yml")
+    name_entry.pack(fill='x', padx=5)
+    
+    editor = CodeView(ventana, wrap="word", lexer=YamlLexer())
+    editor.pack(expand=True, fill="both", padx=5, pady=5)
+    
+    editor.insert("1.0", """name: CI
 on:
   push:
     branches: [ main ]
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -2998,65 +2998,70 @@ jobs:
       - name: Run a one-line script
         run: echo Hello, world!
 """)
+    
+    def upload_workflow():
+        name = name_entry.get().strip()
+        content = editor.get("1.0", "end-1c")
         
-        def upload_workflow():
-            name = name_entry.get().strip()
-            content = editor.get("1.0", "end-1c")
-            
-            if not name.endswith(".yml"):
-                ms.showerror("Invalid Name", "The file must end in .yml")
-                return
-            
-            path = f".github/workflows/{name}"
-            url = f"https://api.github.com/repos/{repo}/contents/{path}"
-            headers = {
+        if not name.endswith(".yml"):
+            ms.showerror("Invalid Name", "The file must end in .yml")
+            return
+        
+        path = f".github/workflows/{name}"
+        url = f"https://api.github.com/repos/{repo}/contents/{path}"
+        headers = {
             "Authorization": f"token {GITHUB_TOKEN}",
-            "Accept": "application/vnd.github+json"}
-            
-            data = {
+            "Accept": "application/vnd.github+json"
+        }
+        
+        data = {
             "message": f"Add workflow {name}",
             "content": base64.b64encode(content.encode()).decode(),
             "branch": "main"
-            }
-            
-            try:
-                r = requests.put(url, headers=headers, data=json.dumps(data))
-                if r.status_code in [200, 201]:
-                    ms.showinfo("Success", f"Workflow {name} created successfully.")
-                    ventana.destroy()
-                else:
-                    ms.showerror("ERROR", f"Could not upload:\n{r.text}")
-            except Exception as e:
-                ms.showerror("ERROR", str(e))
+        }
         
-        def validate_yaml(contenido):
-            import yaml
-            try:
-                yaml.safe_load(contenido)
-                return True, None
-            except yaml.YAMLError as e:
-                return False, str(e)
-        
-        def validate_workflow(editor):
-            content = editor.get("1.0", "end-1c")
-            valid, error = validate_yaml(content)
-            if valid:
-                ms.showinfo("YAML Valid", "✅ The workflow has no syntax errors")
+        try:
+            r = requests.put(url, headers=headers, data=json.dumps(data))
+            if r.status_code in [200, 201]:
+                ms.showinfo("Success", f"Workflow {name} created successfully.")
+                ventana.destroy()
             else:
-                ms.showerror("YAML Invalid", f"❌ Syntax error:\n\n{error}")
-                
-        def validar_automatico(event):
-            contenido = editor.get("1.0", "end-1c")
-            valido, error = validate_yaml(contenido)
-            editor.configure(background="#1e1e1e" if valido else "#2a0000")
-        
-        editor.bind("<KeyRelease>", validar_automatico)
-        
-        btn_upload = ttk.Button(ventana, text="📤 Upload workflow", command=upload_workflow)
-        btn_upload.pack(side='left', expand=True, padx=5, pady=5)
-        
-        btn_verify = ttk.Button(ventana, text="✅ Validate Yaml", command=validate_workflow(editor))
-        btn_verify.pack(side='left', expand=True, padx=5, pady=5)
+                error_message = r.json().get("message", "Unknown error")
+                ms.showerror("ERROR", f"Could not upload:\n{error_message}")
+        except Exception as e:
+            ms.showerror("ERROR", str(e))
+    
+    def validate_yaml(contenido):
+        import yaml
+        try:
+            yaml.safe_load(contenido)
+            return True, None
+        except yaml.YAMLError as e:
+            return False, str(e)
+    
+    def validate_workflow(editor):
+        content = editor.get("1.0", "end-1c")
+        valid, error = validate_yaml(content)
+        if valid:
+            ms.showinfo("YAML Valid", "✅ The workflow has no syntax errors")
+        else:
+            ms.showerror("YAML Invalid", f"❌ Syntax error:\n\n{error}")
+    
+    def validar_automatico(event):
+        contenido = editor.get("1.0", "end-1c")
+        valido, error = validate_yaml(contenido)
+        if valido:
+            editor.config(bg="#282a36")
+        else:
+            editor.config(bg="#2a0000")
+    
+    editor.bind("<KeyRelease>", validar_automatico)
+    
+    btn_upload = ttk.Button(ventana, text="📤 Upload workflow", command=upload_workflow)
+    btn_upload.pack(side='left', expand=True, padx=5, pady=5)
+    
+    btn_verify = ttk.Button(ventana, text="✅ Validate Yaml", command=lambda: validate_workflow(editor))
+    btn_verify.pack(side='left', expand=True, padx=5, pady=5)
 
 path_icon = resource_path("github_control.ico")
 all_project_items = []
@@ -3092,9 +3097,8 @@ def mostrar_selector_cuenta(master_frame):
             for cuenta in cuentas:
                 if cuenta["username"] == username:
                     try:
-                        # El token ya está descifrado, no es necesario descifrarlo de nuevo
                         cuenta_seleccionada["username"] = cuenta["username"]
-                        cuenta_seleccionada["token"] = cuenta["token"]  # Token ya descifrado
+                        cuenta_seleccionada["token"] = cuenta["token"]
                     except Exception as e:
                         ms.showerror("Error", f"❌ Error selecting account: {e}")
                         return
