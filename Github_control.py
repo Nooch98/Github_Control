@@ -1218,7 +1218,6 @@ def show_repo_stats(repo_name):
                 response.raise_for_status()
                 new_data = response.json()
 
-                # Verificar si el widget existe antes de actualizarlo
                 if stars_label.winfo_exists():
                     stars_label.config(text=f"⭐ Stars: {new_data.get('stargazers_count', 0)}", font=("Arial", 12, "bold"))
                 if forks_label.winfo_exists():
@@ -1230,7 +1229,6 @@ def show_repo_stats(repo_name):
                 if clones_label.winfo_exists():
                     clones_label.config(text=f"🔄 Repo clones (Last 14 days): {get_total_clones(repo_name, headers)}", font=("Arial", 12, "bold"))
                 
-                # Verificar si el último release info está disponible
                 last_release_info = get_last_release_info(repo_name, headers)
                 if last_release_info:
                     if last_release_label.winfo_exists():
@@ -1241,7 +1239,6 @@ def show_repo_stats(repo_name):
             except requests.exceptions.RequestException as e:
                 ms.showerror("ERROR", f"Error Updating stats: {e}")
 
-            # Volver a llamar la función después de 15 segundos
             stats_frame.after(15000, update_stats)
             
         update_stats()
@@ -1634,12 +1631,10 @@ def search_repositories():
     def search_repos_in_treeview(event):
         search_query = search_entry_repos.get().strip().lower()
     
-        # Limpiar el Treeview antes de aplicar el filtro
         for item in search_tree.get_children():
             search_tree.item(item, tags=("nomatch",))
         
         if not search_query:
-            # Si no hay búsqueda, mostrar todos los resultados
             for item in search_tree.get_children():
                 search_tree.item(item, tags=("match",))
         else:
@@ -2066,7 +2061,7 @@ def check_github_status():
         response = ping("github.com", timeout=5)
 
         if response is not None:
-            elapse_time = round((time.time() - start_time) * 1000, 2)  # Convertir a ms
+            elapse_time = round((time.time() - start_time) * 1000, 2)
 
             status_label.config(text=f"Github Connection Status: ✅ Ok {elapse_time}ms", bootstyle='success')
         else:
@@ -2250,20 +2245,17 @@ def update_cache():
 def apply_conditional_colors():
     for item in projectstree.get_children():
         values = projectstree.item(item, "values")
-        visibility = values[4].lower()  # "visibility" columna (public/private)
-        repo_type = values[5].lower()  # "repo_type" columna (favorito)
+        visibility = values[4].lower()
+        repo_type = values[5].lower()
 
-        # Cambiar el color de fondo según visibilidad
         if visibility == "private":
             projectstree.item(item, tags=("private",))
         else:
             projectstree.item(item, tags=("public",))
 
-        # Cambiar color si es un favorito
         if repo_type == "⭐ favorito":
             projectstree.item(item, tags=("favorite",))
 
-    # Definir colores para las filas con las tags
     projectstree.tag_configure("private", background="#ff4c4c", foreground="white")
     projectstree.tag_configure("public", background="#4cff4c", foreground="black")
     projectstree.tag_configure("favorite", background="#ffcc00", foreground="black")
@@ -2403,7 +2395,6 @@ def mostrar_terminal():
     def imprimir_salida_con_enlaces(texto, tag="stdout"):
         term_output.config(state='normal')
         
-        # RegEx para detectar enlaces
         enlaces = list(re.finditer(r"(https?://[^\s]+)", texto))
         
         if not enlaces:
@@ -2549,7 +2540,6 @@ def mostrar_terminal():
             r.raise_for_status()
             data = r.json()
 
-            # Ahora buscamos carpetas, no archivos .py
             plugins = [item['name'] for item in data if item['type'] == "dir"]
 
             if not plugins:
@@ -2601,7 +2591,6 @@ def mostrar_terminal():
             response.raise_for_status()
             release = response.json()
 
-            # Buscar el archivo .exe entre los assets
             exe_asset = None
             for asset in release.get("assets", []):
                 if asset["name"].endswith(".exe"):
@@ -2639,7 +2628,6 @@ def mostrar_terminal():
             response.raise_for_status()
             release = response.json()
 
-            # Buscar el archivo .exe entre los assets
             exe_asset = None
             for asset in release.get("assets", []):
                 if asset["name"].endswith(".exe"):
@@ -2744,9 +2732,11 @@ def mostrar_terminal():
             shutil.rmtree(plugin_dir, ignore_errors=True)
 
     def navegar_historial(event):
+        
         nonlocal historial_index
         if not historial:
             return
+        
         if event.keysym == "Up":
             historial_index = max(0, historial_index - 1)
         elif event.keysym == "Down":
@@ -3115,7 +3105,7 @@ def mostrar_selector_cuenta(master_frame):
         token = simpledialog.askstring("🔑 New API Key", "Enter GitHub API token:", show="*")
         if token and is_github_token_valid(token):
             user = obtener_usuario(token)["login"]
-            encrypted_token = cypher_token(token)  # Cifra el token aquí
+            encrypted_token = cypher_token(token)
             cuentas.append({"username": user, "token": encrypted_token})
             save_github_accounts({"github_accounts": cuentas})
             lista.insert("", "end", values=(user,))
